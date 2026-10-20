@@ -1,6 +1,6 @@
 # AIGC 可复现性实验
 
-本仓库为法学课程论文的实验代码，目的在于考察：在同一操作规则下，生成模型多次输出结果的最终图像之间具有何种程度的相似性。
+本仓库为法学课程论文的实验代码，目的在于考察：在同一操作规则下，生成模型多次输出结果的最终图像之间具有何种程度的相似性。Vibecoding含量100%！！！
 ## 一、实验设置
 
 生成采用 ComfyUI 本地接口，模型为 Stable Diffusion 1.5（v1-5-pruned-emaonly.safetensors），ControlNet 为 Canny（control_v11p_sd15_canny_fp16.safetensors）。
