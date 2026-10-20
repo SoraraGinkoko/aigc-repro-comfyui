@@ -1,0 +1,25 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "aicg-repro"
+version = "0.1.0"
+description = "AIGC 最终输出可复现性实验骨架（法学知识产权课程论文，第一阶段 MOCK_ONLY）"
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = [
+    "Pillow==12.2.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest",
+]
+
+[tool.setuptools.packages.find]
+include = ["aicg_repro*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-ra"

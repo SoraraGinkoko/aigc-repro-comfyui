@@ -1,0 +1,2 @@
+# 可选开发依赖：偏好 pytest 时使用；测试亦可用 `python -m unittest` 直接运行。
+pytest>=8.0

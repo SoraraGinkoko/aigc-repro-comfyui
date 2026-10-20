@@ -1,0 +1,51 @@
+{
+  "experiment": {
+    "name": "AIGC 最终输出可复现性实验（法学意义上工具的确定性验证）",
+    "description": "第一阶段 MOCK_ONLY 骨架验证。本配置使用模拟生成器，仅用于验证实验工作流、可复现性与报告管线，不构成任何真实图像生成实验结论。",
+    "prompt": "知识产权法课程论文配图：天平与代码符号，扁平矢量风格",
+    "tags": ["MOCK_ONLY", "phase-1", "reproducibility"]
+  },
+  "num_runs": 5,
+  "max_iterations_per_run": 20,
+  "random": {
+    "strategy": "fixed",
+    "master_seed": 20240601
+  },
+  "stop_conditions": {
+    "quality_threshold": null,
+    "no_improvement_rounds": null
+  },
+  "rollback": {
+    "enabled": true,
+    "max_consecutive_rollbacks": 5,
+    "tolerance": 0.0
+  },
+  "generator": {
+    "type": "mock",
+    "mock": {
+      "image_size": [256, 256],
+      "watermark": "MOCK_ONLY"
+    }
+  },
+  "evaluator": {
+    "type": "mock"
+  },
+  "comparison": {
+    "metrics": ["sha256", "pixel_consistency"],
+    "reserved": {
+      "ssim": null,
+      "lpips": null
+    }
+  },
+  "paths": {
+    "output_root": "runs",
+    "reports_dir": "reports",
+    "logs_dir": "logs"
+  },
+  "error_handling": {
+    "max_retries": 3,
+    "retry_backoff_seconds": 0.05,
+    "checkpoint_enabled": true,
+    "abort_on_failure": false
+  }
+}

@@ -1,0 +1,3 @@
+# 运行期依赖（本机 Python 3.14.6 已实测通过）
+# 仅 Pillow 为必需；测试基于标准库 unittest，无需 pytest 也可运行。
+Pillow==12.2.0

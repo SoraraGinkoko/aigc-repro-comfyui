@@ -1,0 +1,12 @@
+{
+  "note": "由用户在本机运行 scripts/install_comfyui.ps1 下载模型后计算得到的 SHA-256；运行时 manifest 会再次计算并记录。",
+  "source": "HuggingFace 官方源：runwayml/stable-diffusion-v1-5 与 lllyasviel/ControlNet-v1-1",
+  "checkpoint": {
+    "file": "v1-5-pruned-emaonly.safetensors",
+    "sha256": "6ce0161689b3853acaa03779ec93eafe75a02f4ced659bee03f50797806fa2fa"
+  },
+  "controlnet": {
+    "file": "control_v11p_sd15_canny.pth",
+    "sha256": "8ed917dcc9a3defd478051ee53a05de941ce4828810c0b8129fc3b11d267f6c0"
+  }
+}

@@ -1,0 +1,28 @@
+# ---- Python ----
+__pycache__/
+*.py[cod]
+*.egg-info/
+.eggs/
+.venv/
+venv/
+
+# ---- 测试临时目录 ----
+test_tmp_*/
+tmp*/
+diag_*/
+
+# ---- IDE ----
+.idea/
+.vscode/
+
+# ---- 日志 / 测试输出 ----
+*.log
+unittest_*.txt
+
+# ---- 实验输出（体积大、可再生成）----
+runs/
+
+# ---- 预览/示例图（仅保留两张控制图，其余不纳入）----
+assets/*
+!assets/library_edges.png
+!assets/control_image.png

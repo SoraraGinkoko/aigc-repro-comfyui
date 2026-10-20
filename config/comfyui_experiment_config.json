@@ -1,0 +1,71 @@
+{
+  "experiment": {
+    "name": "AIGC 确定性复现实验（ComfyUI + SD1.5 + Canny ControlNet）",
+    "description": "固定全部条件（权重/提示词/控制图/分辨率/采样器/步数/CFG/控制强度/种子序列/运行规则），独立运行 5 次，每次至多 20 轮，比较 5 张最终图像在多大程度上相同。",
+    "prompt": "a geometric still life of a balance scale, flat vector illustration, clean lines, minimal",
+    "tags": ["phase-2", "comfyui", "sd15", "canny-controlnet", "determinism"]
+  },
+  "num_runs": 5,
+  "max_iterations_per_run": 20,
+  "random": {
+    "strategy": "fixed",
+    "master_seed": 20240601
+  },
+  "stop_conditions": {
+    "quality_threshold": null,
+    "no_improvement_rounds": null
+  },
+  "rollback": {
+    "enabled": true,
+    "max_consecutive_rollbacks": 5,
+    "tolerance": 0.0
+  },
+  "generator": {
+    "type": "comfyui",
+    "server_url": "http://127.0.0.1:8188",
+    "comfyui_dir": "D:/ComfyUI",
+    "models_dir": "D:/ComfyUI/models",
+    "checkpoint": "v1-5-pruned-emaonly.safetensors",
+    "controlnet": "control_v11p_sd15_canny_fp16.safetensors",
+    "control_image": "control_image.png",
+    "negative_prompt": "lowres, bad anatomy, bad hands, text, watermark, worst quality, jpeg artifacts",
+    "width": 512,
+    "height": 512,
+    "sampler": "euler",
+    "scheduler": "normal",
+    "steps": 20,
+    "cfg": 7.0,
+    "control_strength": 1.0,
+    "use_canny_preprocess": false,
+    "canny_low": 0.4,
+    "canny_high": 0.8,
+    "seed_sequence_file": "config/seed_sequence.json",
+    "poll_interval_seconds": 1.0,
+    "poll_timeout_seconds": 600
+  },
+  "evaluator": {
+    "type": "clip",
+    "clip": {
+      "clip_model": "openai/clip-vit-base-patch32",
+      "device": "cuda"
+    }
+  },
+  "comparison": {
+    "metrics": ["sha256", "pixel_consistency", "ssim", "lpips"],
+    "reserved": {
+      "ssim": null,
+      "lpips": null
+    }
+  },
+  "paths": {
+    "output_root": "runs",
+    "reports_dir": "reports",
+    "logs_dir": "logs"
+  },
+  "error_handling": {
+    "max_retries": 2,
+    "retry_backoff_seconds": 5.0,
+    "checkpoint_enabled": true,
+    "abort_on_failure": false
+  }
+}
