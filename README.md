@@ -1,240 +1,73 @@
-# AIGC 可复现性实验（法学知识产权课程论文）
+# AIGC 可复现性实验（法学课程论文）
 
-本项目用于检验「同一创作规则下，生成式 AI 最终输出的可复现程度」这一经验问题，
-提供一套**配置驱动、可替换后端、可复现、可审计**的实验骨架。
+这个仓库是一篇法学课程论文的实验代码。问题很具体：在同一套创作规则下，让生成模型反复出图，看最终结果到底有多「像」。这里只做技术层面的相似度度量（哈希、像素、SSIM），不涉及、也不主张任何法律上的独创性结论。
 
-> **技术相似度 ≠ 法律独创性**：本项目的 SHA-256 / 像素 / SSIM / LPIPS 只反映
-> **技术层面**的一致程度，不构成著作权法上的独创性判断，也不等同于作者身份或人类实质控制。
+## 实验设置
 
----
+生成走 ComfyUI 的本地接口，模型是 Stable Diffusion 1.5（`v1-5-pruned-emaonly.safetensors`），搭配 Canny ControlNet（`control_v11p_sd15_canny_fp16.safetensors`）。
 
-## 1. 当前状态
+创作对象是学校图书馆。控制图由图书馆照片经 Canny 边缘检测得到（scikit-image，`sigma=2.0`），512×512 白线黑底。提示词、分辨率 512×512、euler 采样器、20 步、CFG 7.0、控制强度 1.0 在所有创作里固定不变。
 
-- **真实后端**：ComfyUI（本地 HTTP API）+ **Stable Diffusion 1.5** + **Canny ControlNet**。
-- **创作对象**：某高校图书馆。控制图 `library_edges.png` 由照片经 Canny 边缘检测（scikit-image，`sigma=2.0`，约 9% 边缘密度）生成，白线黑底、512×512。
-- **实验设计**：**10 次独立创作**（`num_runs=10`、`replicates_per_pair=1`），每次使用**不同、预先固定、互不重叠**的种子序列，最终比较 10 张最终图的两两相似度（**C(10,2)=45 组**）。
-- **已实测结论**（mock 评价器，真实 ComfyUI 生成）：
-  - **同一种子序列跑 3 遍 → 最终图 SHA-256 字节级完全一致**（确定性可复现）；
-  - **不同种子序列 → 0/45 字节级相同**，像素相似度均值 ≈ **0.842**，SSIM 均值 ≈ **0.474**。
+评价用 CLIP（`openai/clip-vit-base-patch32`，跑在 CPU 上），拿图像—文本 logits 作为每张候选图的分数，只用来决定「接受」还是「回退」，不反过来改提示词或生成参数。提示词有 89 个 token，超过 CLIP 文本编码器 77 的上限，评价器里加了截断（`truncation=True, max_length=77`），否则会直接报错。
 
-> mock 评价器只用于预览/诊断（见 §6.3）；正式实验用 CLIP 评价器，需在**本地终端**运行（自动化执行环境无外网，无法下载 CLIP 模型）。
+## 实验设计
 
----
+一共做 10 次独立创作。每次用一条不同的、事先固定好的种子序列——种子簿是 20 条 × 20 个种子，互不重复、无平移重叠，由 `master_seed` 确定性生成，实验前落盘，不做事后挑选。第 `run_index` 次创作取第 `run_index-1` 条序列，每轮用 `sequence[round-1]`，实际提交给 KSampler 的种子会写进 manifest 和审计日志。
 
-## 2. 实验设计
+每次创作按「生成—评价—接受/回退」循环，上限 20 轮。这轮实验把连续回退阈值也设成了 20，所以 10 次都跑满 20 轮（`stop=max_iterations`）。
 
-### 2.1 一次创作
+比较对象是 10 张最终图，两两计算 SHA-256、像素相似度和 SSIM，共 C(10,2)=45 组。LPIPS 这次没算——环境里下不了 torchvision 的骨干权重，指标留空，不编数。
 
-从相同初始意图/提示词开始，用相同模型、控制图、分辨率、采样器、步数、CFG、ControlNet 强度，
-按同一套规则执行「生成 → 评价 → 接受/回退 → 停止」，最终按规则确定一张最终图像。
+## 结果
 
-### 2.2 10 次独立创作
+10 张图没有两张字节级相同（0/45）。像素相似度均值 0.830（0.754–0.877），SSIM 均值 0.473（0.367–0.601），LPIPS 缺失。
 
-- 共 **10 次创作**（`num_runs=10`），**不是配对 A/B**。
-- 每次创作使用**不同、预先固定、互不重叠**的种子序列（种子簿第 `run_index-1` 条）。
-- 每次最多 **20 轮**；若提前停止，如实记录实际轮数与停止原因（不凑轮数）。
+另外做了一个对照：同一条种子序列重复跑 3 次，最终图的 SHA-256 完全一致。也就是说这台机器上生成过程本身是确定的，前面那些差异来自种子不同，而不是计算噪声。
 
-### 2.3 种子簿（可审计）
+这些数字只反映技术上的相似程度，不能拿来证明 AI 生成内容享有著作权，也不能证明人对其有实质控制。
 
-- `config/seed_book.json`：**20 条序列 × 20 个种子**，全部互不重复、无平移重叠，由 `master_seed` 确定性生成，正式实验前落盘，**绝不事后挑选**。
-- 第 `run_index` 次创作用第 `run_index-1` 条序列；每轮取 `sequence[round-1]`，实际提交给 KSampler 的种子写入审计与 manifest。
+## 跑起来
 
-### 2.4 评价与停止（如实描述）
-
-- 评价 = **CLIP 图像-文本相似度**（`device=cpu`，避免与 ComfyUI 争抢 8GB 显存）。
-- CLIP 分数**仅用于候选接受/回退门控**，**不反馈到提示词或任何生成参数**——「修改」步实际上是「取序列下一个种子重新生成」。
-- 停止规则：硬上限 20 轮；连续回退达 `max_consecutive_rollbacks`（5）次提前停止；每轮记录评分、决策、连续回退次数、停止原因。
-
----
-
-## 3. 环境要求
-
-- **ComfyUI** + SD1.5 + Canny ControlNet（本地 `http://127.0.0.1:8188`）。
-- 运行实验的 Python：`D:\Anaconda_envs\envs\comfyui\python.exe`（含 torch、scikit-image、transformers、lpips）。
-- 依赖锁定见 `requirements.txt`（核心为 Pillow；真实后端另需 torch/scikit-image/lpips 等）。
-
----
-
-## 4. 运行测试
-
-```bat
-:: 标准库 unittest（无需 pytest）
-python -m unittest discover -s tests -t . -v
-```
-
-当前 **37 项测试全部通过**，覆盖：迭代上限、状态隔离、运行次数、失败记录、最终图归档、
-报告生成（10 次 → 45 组两两比较）、确定性（fixed 种子字节一致 / run_index 相异）、断点恢复、
-种子簿、ComfyUI 集成等。
-
----
-
-## 5. 运行实验
-
-```bat
-:: 0) 启动 ComfyUI（另开窗口，等待 http://127.0.0.1:8188 就绪）
+```powershell
+# 1. 启动 ComfyUI（另开窗口，等 http://127.0.0.1:8188 就绪）
 powershell -ExecutionPolicy Bypass -File scripts\run_comfyui.ps1
 
-:: 1) 预检（服务/模型/GPU/torch/SSIM/LPIPS/种子簿）
+# 2. 预检
 D:\Anaconda_envs\envs\comfyui\python.exe scripts\preflight_check.py --config config\pair_experiment_config.json
 
-:: 2) 单轮冒烟（验证真实出图）
-D:\Anaconda_envs\envs\comfyui\python.exe scripts\single_round_smoke_test.py
-
-:: 3) 3 张预览（mock 评价、快速看效果；可选）
-D:\Anaconda_envs\envs\comfyui\python.exe run_experiment.py --config config\library_preview_config.json
-
-:: 4) 正式实验（10 次创作 × 至多 20 轮；CLIP 评价）
+# 3. 正式实验（10 次 × 20 轮，CLIP 评价）
 D:\Anaconda_envs\envs\comfyui\python.exe run_experiment.py --config config\pair_experiment_config.json
 ```
 
-续跑（跳过已完成的运行）：
+第一次跑 CLIP 需要先把模型下到本地缓存。如果 HuggingFace 连不上，用国内镜像：
 
-```bat
-python run_experiment.py --config config\pair_experiment_config.json --experiment-id <已有的实验ID> --resume
+```powershell
+$env:HF_ENDPOINT = "https://hf-mirror.com"
+D:\Anaconda_envs\envs\comfyui\python.exe -c "from huggingface_hub import snapshot_download; snapshot_download('openai/clip-vit-base-patch32')"
 ```
 
-参数：
+之后运行实验时加 `$env:HF_HUB_OFFLINE="1"` 即可离线加载。
 
-| 参数 | 说明 |
-| --- | --- |
-| `--config` | 配置路径 |
-| `--experiment-id` | 显式实验 ID；不指定则自动生成 |
-| `--resume` | 断点恢复，已成功的运行幂等跳过 |
-| `--force` | 覆盖已存在实验目录（不推荐） |
+结果都在 `runs/<实验ID>/` 下：`reports/` 有 `pairwise_pairs.csv`（45 组明细）、`pairwise_matrix.csv`、`descriptive_stats.csv` 和 `report.html`；`runs/run_XXX/final.png` 是每次创作的最终图。
 
----
+## 配置和脚本
 
-## 6. 配置与评价器
+- `config/pair_experiment_config.json`：正式实验（10 次 × 20 轮，CLIP 评价）。
+- `config/library_preview_config.json`：快速预览（mock 评价，跑得慢的话先看效果用）。
+- `config/determinism_check_config.json`：同种子重复跑的确定性对照。
+- `config/seed_book.json`：正式种子簿；`config/seed_book_same3.json` 是确定性对照用的三条相同序列。
+- `scripts/determinism_check.py`：同一种子跑 3 遍，比对 SHA-256。
+- `scripts/make_grid.py`：把 10 张最终图拼成 5×2 网格（论文插图用）。
+- `scripts/preview_compare3.py`：临时练手脚本，算 3 张图的两两相似度。
 
-### 6.1 正式配置 `config/pair_experiment_config.json`
+## 已知限制
 
-```jsonc
-{
-  "num_runs": 10,                    // 10 次独立创作
-  "replicates_per_pair": 1,          // 每次创作独立，不配对
-  "max_iterations_per_run": 20,      // 每次最多 20 轮
-  "rollback": { "enabled": true, "max_consecutive_rollbacks": 5, "tolerance": 0.0 },
-  "generator": {
-    "type": "comfyui",
-    "checkpoint": "v1-5-pruned-emaonly.safetensors",
-    "controlnet": "control_v11p_sd15_canny_fp16.safetensors",
-    "control_image": "library_edges.png",
-    "prompt": "a grand modern library building, ... photorealistic architectural render, detailed stone texture, sharp focus, soft natural daylight",
-    "width": 512, "height": 512, "sampler": "euler", "steps": 20, "cfg": 7.0,
-    "control_strength": 1.0, "use_canny_preprocess": false,
-    "seed_book_file": "config/seed_book.json"
-  },
-  "evaluator": { "type": "clip", "clip": { "clip_model": "openai/clip-vit-base-patch32", "device": "cpu" } }
-}
-```
+1. **CLIP 跑在 CPU 上**，速度比 GPU 慢，但避免和 ComfyUI 抢 8GB 显存。
+2. **LPIPS 没有算**，原因见上，报告里留空。
+3. **换模型就等于换实验条件**：结论只针对 SD1.5 + 这套 Canny 工作流 + 这个图书馆任务，换成 SDXL/Flux 是另一组实验，不能混着算。
+4. **「最多 20 轮」不等于「必须 20 轮」**：这轮把回退阈值调到 20 才让每次都跑满；如果按原来的「连续回退 5 次即停」，多数创作会在 6 到 11 轮之间提前结束。
+5. **模拟数据不是真实实验**：仓库里的 mock 生成器/评价器只用于测试管线，不能当实验结果。
 
-### 6.2 其他配置
+## 说明
 
-- `config/library_preview_config.json`：快速预览（mock 评价、`num_runs=3`、可调参数），非正式数据。
-- `config/determinism_check_config.json`：确定性对照（3 次同种子序列）。
-- `config/seed_book.json`：正式种子簿（20×20）。
-- `config/seed_book_same3.json`：确定性对照用的「3 条相同序列」簿。
-
-### 6.3 评价器
-
-- 正式实验：`clip`（真实图像-文本相似度，`device=cpu`）。
-- 预览/诊断：`mock`（按图像哈希映射 [0,1)，**无语义**，仅驱动接受/回退流程，不代表语义最优）。
-- 预览与正式实验的评价器不同，**不可把 mock 结果当作正式实验数据**。
-
----
-
-## 7. 输出产物
-
-每次实验在 `runs/<experiment_id>/` 下生成：
-
-```
-runs/<experiment_id>/
-├── experiment.json
-├── config_snapshot.json
-├── logs/experiment.log
-├── reports/
-│   ├── runs_summary.csv       # 全部创作状态汇总（含种子序列）
-│   ├── final_image_index.csv  # 最终图像索引
-│   ├── pairwise_pairs.csv     # C(N,2) 组两两比较（45 组）
-│   ├── pairwise_matrix.csv    # N×N 矩阵（SHA-256 一致性）
-│   ├── descriptive_stats.csv  # 相似度统计（均值/中位数/最小/最大/完全一致对数）
-│   ├── round_history.csv      # 每轮种子与接受/回退决策
-│   └── report.html            # 自包含 HTML 报告
-└── runs/run_XXX/
-    ├── manifest.json          # 轮数/种子/配置/版本/状态/输出路径
-    ├── final.png              # 最终图像（主要比较对象）
-    ├── best.png / current.png # 中间状态（仅审计）
-    ├── checkpoint.json        # 断点记录
-    └── audit.log              # 每轮审计日志
-```
-
-相似度指标：
-
-| 指标 | 含义 | 状态 |
-| --- | --- | --- |
-| `sha256_equal` | 字节级一致性（1.0=完全相同） | ✅ |
-| `pixel_exact` / `pixel_similarity` | 解码后像素一致性 | ✅ |
-| `ssim` | 结构相似性（越高越相似） | ✅ 需 `numpy`+`scikit-image` |
-| `lpips` | 感知距离（越小越相似） | ✅ 需 `lpips`+`torch`+`torchvision`；**下载骨干失败时降级为空，不崩溃** |
-
-> 原则：不编造阈值或数据；指标不可用时留空并标注原因，不当作 0。
-
----
-
-## 8. 确定性对照（关键结论）
-
-除正式实验外，另设「同一种子序列跑 3 遍」的对照（`scripts/determinism_check.py`）：
-
-- **同种子 × 3 遍 → 最终图 SHA-256 完全一致**（字节级可复现）。
-- 这说明：**在这台硬件上，SD1.5 + Canny 工作流对同一种子是确定性的**。
-- 因此，正式实验中 10 张图之间的差异（0/45 字节一致、像素 0.84、SSIM 0.47）**可归因于种子（随机轨迹）差异，而非 GPU 计算噪声**。
-
----
-
-## 9. 项目结构
-
-```
-exp/
-├── run_experiment.py              # CLI 入口
-├── config/                        # 实验配置与种子簿
-├── aicg_repro/
-│   ├── config.py                  # 配置加载/校验/快照/种子策略
-│   ├── controller.py              # 控制器（循环/停止/回退/重试/断点/种子簿）
-│   ├── state.py                   # 状态重置与隔离
-│   ├── seeds.py                   # 种子序列与种子簿
-│   ├── generators/                # 生成器（mock / comfyui_generator）
-│   ├── evaluators/                # 评价器（mock / clip）
-│   ├── build.py                   # 配置 → 生成器/评价器 工厂
-│   ├── comparison.py              # SHA-256/像素/SSIM/LPIPS
-│   ├── manifest.py                # manifest 与版本收集
-│   ├── reporting.py               # CSV + HTML（N 次两两比较）
-│   └── errors.py / audit.py
-├── scripts/
-│   ├── run_comfyui.ps1            # 启动 ComfyUI 服务
-│   ├── preflight_check.py         # 预检
-│   ├── single_round_smoke_test.py # 单轮冒烟
-│   ├── generate_seed_book.py      # 预生成种子簿
-│   ├── determinism_check.py       # 同种子 × 3 遍确定性对照
-│   ├── make_grid.py               # 10 张图合成 5×2 网格（论文插图）
-│   └── preview_compare3.py        # 3 张图快速比较
-├── tests/                         # 37 项 unittest
-└── README.md
-```
-
----
-
-## 10. 已知限制
-
-1. **预览用 mock 评价**：本地自动化环境无外网，CLIP 模型无法下载，预览实验用 mock 伪随机分数；正式实验须在本地终端用 CLIP。
-2. **LPIPS 在受限环境降级为空**：若无法下载 torchvision 骨干权重，LPIPS 留空（不崩溃、不编造）。
-3. **「最多 20 轮」≠「必须 20 轮」**：实际轮数由停止/回退规则决定，论文应如实写实际轮数与停止原因。
-4. **换模型 = 换实验条件**：本实验的结论限于 SD1.5 + 该 Canny 工作流 + 该任务；换 SDXL/Flux 属另一组实验，不可混算。
-5. **技术指标 ≠ 法律结论**：参见开头声明。
-
----
-
-## 11. 免责声明
-
-本项目仅用于法学课程论文的方法学讨论（「生成式 AI 是否具有工具意义上的确定性」），
-不构成任何法律意见，也不对任何生成式 AI 的确定性/非确定性作最终结论；技术相似度指标
-不构成著作权法上的独创性判断。
+代码里的技术指标只是度量工具。哈希、像素误差、SSIM、LPIPS 反映的是图像在技术层面有多接近，和著作权法上的独创性判断是两回事，写论文时不要把两者混为一谈。
