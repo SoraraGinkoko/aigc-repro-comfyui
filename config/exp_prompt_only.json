@@ -1,0 +1,63 @@
+{
+  "experiment": {
+    "name": "消融：光提示词（无 ControlNet）10 次",
+    "description": "不使用任何 ControlNet，仅凭提示词生成，作为消融基线。",
+    "prompt": "a grand modern library building, symmetrical facade, large glass curtain wall, six imposing cylindrical columns, light stone exterior, rows of windows, wide grand staircase leading up to the elevated second-floor entrance, paved plaza in front, stone monument on the lawn, manicured green lawn and trees, clear blue sky, bright natural sunlight, front view, photorealistic architectural render, detailed stone texture, sharp focus, soft natural daylight",
+    "tags": ["ablation", "prompt-only"]
+  },
+  "num_runs": 10,
+  "replicates_per_pair": 1,
+  "max_iterations_per_run": 20,
+  "random": {
+    "strategy": "fixed",
+    "master_seed": 20240601
+  },
+  "stop_conditions": {
+    "quality_threshold": null,
+    "no_improvement_rounds": null
+  },
+  "rollback": {
+    "enabled": true,
+    "max_consecutive_rollbacks": 20,
+    "tolerance": 0.0
+  },
+  "generator": {
+    "type": "comfyui",
+    "server_url": "http://127.0.0.1:8188",
+    "comfyui_dir": "D:/ComfyUI",
+    "models_dir": "D:/ComfyUI/models",
+    "checkpoint": "v1-5-pruned-emaonly.safetensors",
+    "negative_prompt": "lowres, blurry, jpeg artifacts, watermark, signature, text, gibberish, chinese characters, letters, logo, deformed, distorted, asymmetric, crooked, floating, disconnected structure, messy, noisy, oversaturated, overexposed, worst quality, low quality, bad architecture",
+    "width": 512,
+    "height": 512,
+    "sampler": "euler",
+    "scheduler": "normal",
+    "steps": 20,
+    "cfg": 7.0,
+    "seed_book_file": "config/seed_book.json",
+    "poll_interval_seconds": 1.0,
+    "poll_timeout_seconds": 600
+  },
+  "evaluator": {
+    "type": "clip",
+    "clip": {
+      "clip_model": "openai/clip-vit-base-patch32",
+      "device": "cpu"
+    }
+  },
+  "comparison": {
+    "metrics": ["sha256", "pixel_consistency", "ssim", "lpips", "dreamsim"],
+    "reserved": {}
+  },
+  "paths": {
+    "output_root": "runs",
+    "reports_dir": "reports",
+    "logs_dir": "logs"
+  },
+  "error_handling": {
+    "max_retries": 2,
+    "retry_backoff_seconds": 5.0,
+    "checkpoint_enabled": true,
+    "abort_on_failure": false
+  }
+}

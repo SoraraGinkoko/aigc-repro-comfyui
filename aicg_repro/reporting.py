@@ -24,21 +24,19 @@ from .comparison import compute_pair_metrics
 from .manifest import collect_software_versions, utcnow_iso
 
 METRIC_KEYS = [
-    "sha256_equal",
-    "pixel_exact",
     "pixel_mae",
     "pixel_similarity",
     "ssim",
     "lpips",
+    "dreamsim",
 ]
 
 METRIC_NOTE = {
-    "sha256_equal": "字节级一致，1.0=完全相同",
-    "pixel_exact": "像素完全一致，1.0=完全相同",
     "pixel_mae": "平均绝对像素误差，越小越相似",
     "pixel_similarity": "像素相似度，越大越相似",
     "ssim": "结构相似性，越大越相似",
     "lpips": "感知距离，越小越相似",
+    "dreamsim": "DreamSim 感知距离，越小越相似",
 }
 
 
@@ -132,10 +130,10 @@ def generate_reports(
         pair_rows,
     )
 
-    # N×N 矩阵（sha256_equal）
+    # N×N 矩阵（SSIM 结构相似性）
     sha_mat = [[1.0] * n for _ in range(n)] if n else []
     for p in pairs:
-        v = p["sha256_equal"]
+        v = p["ssim"]
         sha_mat[p["i"] - 1][p["j"] - 1] = v
         sha_mat[p["j"] - 1][p["i"] - 1] = v
     if n > 0:
@@ -150,19 +148,16 @@ def generate_reports(
     for key in METRIC_KEYS:
         values = [p[key] for p in pairs if p.get(key) is not None]
         d = descriptive(values)
-        identical = ""
-        if key in ("sha256_equal", "pixel_exact"):
-            identical = sum(1 for v in values if v == 1.0)
         note = METRIC_NOTE.get(key, "")
         if not values:
             note = (note + "；") if note else ""
             note += "未计算（后端未安装或图像缺失）"
         stats_rows.append(
-            [key, d["count"], d["mean"], d["median"], d["min"], d["max"], identical, note]
+            [key, d["count"], d["mean"], d["median"], d["min"], d["max"], note]
         )
     stats_csv = _rows_to_csv(
         reports_dir / "descriptive_stats.csv",
-        ["metric", "count", "mean", "median", "min", "max", "identical_pairs", "note"],
+        ["metric", "count", "mean", "median", "min", "max", "note"],
         stats_rows,
     )
 
@@ -247,7 +242,6 @@ def _write_html(
     n_total = len(manifests)
     n_success = sum(1 for m in manifests if m.get("status") == "success")
     n_pairs = len(pairs)
-    n_identical = sum(1 for p in pairs if p.get("sha256_equal") == 1.0)
 
     pair_rows = []
     for p in pairs:
@@ -288,21 +282,20 @@ td {{ word-break: break-all; }}
 <p><strong>实验 ID：</strong>{_esc(experiment_dir.name)}</p>
 <p><strong>创作次数：</strong>{n_total}（<strong>成功：</strong>{n_success}）</p>
 <p><strong>两两比较组数：</strong>{n_pairs}（C({n_success},2)）</p>
-<p><strong>字节级完全一致的对数：</strong>{n_identical}</p>
 <p><strong>生成时间：</strong>{_esc(utcnow_iso())}</p>
 </div>
 
 <h2>1. 每次创作状态汇总</h2>
 {_table(["run_index","run_id","status","seed","seed_strategy","rounds_actual","stop_reason","final_sha256","error_type","error_message"], summary_rows)}
 
-<h2>2. 两两比较矩阵（SHA-256 字节级一致性，1.0=完全相同）</h2>
+<h2>2. 两两比较矩阵（SSIM 结构相似性，越大越相似）</h2>
 {_matrix_table(labels, sha_mat)}
 
 <h2>3. 两两比较长表（C({n_success},2) = {n_pairs} 组）</h2>
 {_table(["i","j","run_i","run_j"] + METRIC_KEYS, pair_rows)}
 
 <h2>4. 相似度描述性统计</h2>
-{_table(["metric","count","mean","median","min","max","identical_pairs","note"], stats_rows)}
+{_table(["metric","count","mean","median","min","max","note"], stats_rows)}
 
 <h2>5. 软件与模型版本</h2>
 {versions_html}

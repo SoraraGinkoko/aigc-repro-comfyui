@@ -2,7 +2,7 @@
   "experiment": {
     "name": "AIGC 同一创作者独立重复创作实验（ComfyUI + SD1.5 + Canny ControlNet）",
     "description": "同一创作者按相同创作规则独立完成两次创作（A/B），比较最终表达的可重复性。10 对 × 2 次创作，每次创作使用不同但预先固定、互不重叠的种子序列。",
-    "prompt": "a grand modern library building, symmetrical facade, large glass curtain wall, six imposing cylindrical columns, light stone exterior, rows of windows, wide grand staircase leading up to the elevated second-floor entrance, paved plaza in front, stone monument on the lawn, manicured green lawn and trees, clear blue sky, bright natural sunlight, front view, photorealistic architectural render, detailed stone texture, sharp focus, soft natural daylight",
+    "prompt": "a grand modern library building, symmetrical facade, large glass curtain wall, six imposing cylindrical columns, light stone exterior, wide grand staircase leading up to the elevated second-floor entrance, paved plaza in front, a road running across the entire foreground, clear blue sky, bright natural sunlight, front view, photorealistic architectural render, sharp focus, soft natural daylight",
     "tags": ["phase-2", "comfyui", "sd15", "canny-controlnet", "paired-reproduction"]
   },
   "num_runs": 10,
@@ -31,7 +31,7 @@
     "control_image": "library_edges.png",
     "negative_prompt": "lowres, blurry, jpeg artifacts, watermark, signature, text, gibberish, chinese characters, letters, logo, deformed, distorted, asymmetric, crooked, floating, disconnected structure, messy, noisy, oversaturated, overexposed, worst quality, low quality, bad architecture",
     "width": 512,
-    "height": 512,
+    "height": 320,
     "sampler": "euler",
     "scheduler": "normal",
     "steps": 20,

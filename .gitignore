@@ -6,7 +6,7 @@ __pycache__/
 .venv/
 venv/
 
-# ---- 测试临时目录 ----
+# ---- temp dirs ----
 test_tmp_*/
 tmp*/
 diag_*/
@@ -15,14 +15,50 @@ diag_*/
 .idea/
 .vscode/
 
-# ---- 日志 / 测试输出 ----
+# ---- logs / test output ----
 *.log
 unittest_*.txt
 
-# ---- 实验输出（体积大、可再生成）----
+# ---- experiment outputs (large, regenerable) ----
 runs/
 
-# ---- 预览/示例图（仅保留两张控制图，其余不纳入）----
+# ---- previews (keep only the control images used in the paper) ----
 assets/*
 !assets/library_edges.png
 !assets/control_image.png
+
+# ---- model cache ----
+models/
+
+# ---- personal paper & school documents ----
+*.docx
+*.doc
+
+# ---- paper editing scripts (not part of the experiment) ----
+scripts/format_*.py
+scripts/fix_*.py
+scripts/rewrite_*.py
+scripts/diag_*.py
+scripts/inspect_docx.py
+scripts/audit_paper.py
+scripts/add_subheadings.py
+scripts/convert_citation_style.py
+scripts/renumber_citations.py
+scripts/renumber_figures.py
+scripts/write_refs.py
+scripts/clean_caphyon.ps1
+
+# ---- exploratory trials not used in the paper ----
+config/exp_noseg.json
+config/exp_seg.json
+config/exp_seg_hand.json
+scripts/plot_ab_compare.py
+scripts/plot_abc_compare.py
+scripts/plot_before_after.py
+scripts/plot_before_after_barchart.py
+scripts/plot_ablation_variants.py
+scripts/manual_seg.py
+scripts/seg_legend.py
+scripts/make_grid_oldseg.py
+scripts/make_grid_prompt_only.py
+scripts/fidelity_metrics.py

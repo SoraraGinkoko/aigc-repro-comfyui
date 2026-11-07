@@ -79,8 +79,8 @@ class ComfyUIGenerator(BaseGenerator):
         g = config["generator"]
         self.server_url = g["server_url"]
         self.checkpoint = g["checkpoint"]
-        self.controlnet = g["controlnet"]
-        self.control_image = g["control_image"]
+        self.controlnet = g.get("controlnet")
+        self.control_image = g.get("control_image")
         self.prompt = config["experiment"]["prompt"]
         self.negative_prompt = g.get("negative_prompt", "")
         self.width = int(g["width"])
@@ -89,7 +89,11 @@ class ComfyUIGenerator(BaseGenerator):
         self.scheduler = g["scheduler"]
         self.steps = int(g["steps"])
         self.cfg = float(g["cfg"])
-        self.control_strength = float(g["control_strength"])
+        self.control_strength = float(g.get("control_strength", 1.0))
+        # 可选：第二个（语义分割）ControlNet
+        self.controlnet2 = g.get("controlnet2")
+        self.control_image2 = g.get("control_image2")
+        self.control_strength2 = float(g.get("control_strength2", 1.0))
         # Canny 预处理：默认关闭（直接用预生成的白线黑底边缘图，更可复现）。
         # 开启时使用 ComfyUI 归一化阈值（0.01~0.99，默认 0.4/0.8）。
         self.use_canny_preprocess = bool(g.get("use_canny_preprocess", False))
@@ -200,63 +204,16 @@ class ComfyUIGenerator(BaseGenerator):
     # 工作流构建（SD1.5 + Canny ControlNet，text-to-image）
     # ------------------------------------------------------------------ #
     def _build_workflow(self, seed: int) -> Dict[str, Any]:
-        # 控制图来源：默认直接使用预生成的白线黑底边缘图；可选在线 Canny 预处理。
-        if self.use_canny_preprocess:
-            control_source: Any = ["3", 0]
-            canny_node = {
-                "3": {
-                    "class_type": "Canny",
-                    "inputs": {
-                        "image": ["2", 0],
-                        "low_threshold": self.canny_low,
-                        "high_threshold": self.canny_high,
-                    },
-                }
-            }
-        else:
-            control_source = ["2", 0]
-            canny_node = {}
-
-        return {
+        workflow: Dict[str, Any] = {
             "1": {"class_type": "CheckpointLoaderSimple", "inputs": {"ckpt_name": self.checkpoint}},
-            "2": {"class_type": "LoadImage", "inputs": {"image": self.control_image}},
-            **canny_node,
-            "4": {"class_type": "ControlNetLoader", "inputs": {"control_net_name": self.controlnet}},
             "5": {"class_type": "CLIPTextEncode", "inputs": {"text": self.prompt, "clip": ["1", 1]}},
             "6": {
                 "class_type": "CLIPTextEncode",
                 "inputs": {"text": self.negative_prompt, "clip": ["1", 1]},
             },
-            "7": {
-                "class_type": "ControlNetApplyAdvanced",
-                "inputs": {
-                    "positive": ["5", 0],
-                    "negative": ["6", 0],
-                    "control_net": ["4", 0],
-                    "image": control_source,
-                    "strength": self.control_strength,
-                    "start_percent": 0.0,
-                    "end_percent": 1.0,
-                },
-            },
             "8": {
                 "class_type": "EmptyLatentImage",
                 "inputs": {"width": self.width, "height": self.height, "batch_size": 1},
-            },
-            "9": {
-                "class_type": "KSampler",
-                "inputs": {
-                    "model": ["1", 0],
-                    "positive": ["7", 0],
-                    "negative": ["7", 1],
-                    "latent_image": ["8", 0],
-                    "seed": seed,
-                    "steps": self.steps,
-                    "cfg": self.cfg,
-                    "sampler_name": self.sampler,
-                    "scheduler": self.scheduler,
-                    "denoise": 1.0,
-                },
             },
             "10": {"class_type": "VAEDecode", "inputs": {"samples": ["9", 0], "vae": ["1", 2]}},
             "11": {
@@ -264,3 +221,76 @@ class ComfyUIGenerator(BaseGenerator):
                 "inputs": {"images": ["10", 0], "filename_prefix": "aicg_repro"},
             },
         }
+        pos: Any = ["5", 0]
+        neg: Any = ["6", 0]
+
+        # 可选：第一个 ControlNet（Canny）
+        if self.controlnet and self.control_image:
+            if self.use_canny_preprocess:
+                control_source: Any = ["3", 0]
+                workflow["3"] = {
+                    "class_type": "Canny",
+                    "inputs": {
+                        "image": ["2", 0],
+                        "low_threshold": self.canny_low,
+                        "high_threshold": self.canny_high,
+                    },
+                }
+            else:
+                control_source = ["2", 0]
+            workflow["2"] = {"class_type": "LoadImage", "inputs": {"image": self.control_image}}
+            workflow["4"] = {
+                "class_type": "ControlNetLoader",
+                "inputs": {"control_net_name": self.controlnet},
+            }
+            workflow["7"] = {
+                "class_type": "ControlNetApplyAdvanced",
+                "inputs": {
+                    "positive": pos,
+                    "negative": neg,
+                    "control_net": ["4", 0],
+                    "image": control_source,
+                    "strength": self.control_strength,
+                    "start_percent": 0.0,
+                    "end_percent": 1.0,
+                },
+            }
+            pos, neg = ["7", 0], ["7", 1]
+
+        # 可选：第二个 ControlNet（语义分割），可与 Canny 串联或单独使用
+        if self.controlnet2 and self.control_image2:
+            workflow["12"] = {"class_type": "LoadImage", "inputs": {"image": self.control_image2}}
+            workflow["13"] = {
+                "class_type": "ControlNetLoader",
+                "inputs": {"control_net_name": self.controlnet2},
+            }
+            workflow["14"] = {
+                "class_type": "ControlNetApplyAdvanced",
+                "inputs": {
+                    "positive": pos,
+                    "negative": neg,
+                    "control_net": ["13", 0],
+                    "image": ["12", 0],
+                    "strength": self.control_strength2,
+                    "start_percent": 0.0,
+                    "end_percent": 1.0,
+                },
+            }
+            pos, neg = ["14", 0], ["14", 1]
+
+        workflow["9"] = {
+            "class_type": "KSampler",
+            "inputs": {
+                "model": ["1", 0],
+                "positive": pos,
+                "negative": neg,
+                "latent_image": ["8", 0],
+                "seed": seed,
+                "steps": self.steps,
+                "cfg": self.cfg,
+                "sampler_name": self.sampler,
+                "scheduler": self.scheduler,
+                "denoise": 1.0,
+            },
+        }
+        return workflow

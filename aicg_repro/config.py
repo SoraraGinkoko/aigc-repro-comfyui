@@ -110,7 +110,7 @@ def validate_config(cfg: Dict[str, Any]) -> None:
     if ev_type not in ("mock", "clip"):
         raise ConfigError(f"evaluator.type 仅支持 'mock' / 'clip'，得到: {ev_type!r}")
     metrics = cfg["comparison"]["metrics"]
-    known = {"sha256", "pixel_consistency", "ssim", "lpips"}
+    known = {"sha256", "pixel_consistency", "ssim", "lpips", "dreamsim"}
     if not isinstance(metrics, list) or not all(m in known for m in metrics):
         raise ConfigError(f"comparison.metrics 仅支持 {sorted(known)} 子集，得到: {metrics!r}")
 

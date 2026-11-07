@@ -133,6 +133,40 @@ def lpips(path_a: str | Path, path_b: str | Path) -> float:
 
 
 # --------------------------------------------------------------------------- #
+# DreamSim 感知相似度（距离，越小越相似）
+# --------------------------------------------------------------------------- #
+
+_dreamsim_model = None
+_dreamsim_preprocess = None
+
+
+def dreamsim_distance(path_a: str | Path, path_b: str | Path) -> float:
+    """DreamSim 感知距离（越小越相似），基于 DINOv2 单模型。"""
+    global _dreamsim_model, _dreamsim_preprocess
+    try:
+        import torch
+        from dreamsim import dreamsim
+    except ImportError as exc:
+        raise MetricUnavailableError(
+            "DreamSim 为预留接口：当前环境未安装 dreamsim，不计算、不编造数值。"
+        ) from exc
+    try:
+        if _dreamsim_model is None:
+            _dreamsim_model, _dreamsim_preprocess = dreamsim(
+                pretrained=True, device="cpu", dreamsim_type="dinov2_vitb14"
+            )
+        x = _dreamsim_preprocess(_decode_rgb(path_a))
+        y = _dreamsim_preprocess(_decode_rgb(path_b))
+        with torch.no_grad():
+            d = _dreamsim_model(x, y)
+        return float(d.item())
+    except MetricUnavailableError:
+        raise
+    except Exception as exc:
+        raise MetricUnavailableError(f"DreamSim 计算失败：{exc}") from exc
+
+
+# --------------------------------------------------------------------------- #
 # 汇总与矩阵
 # --------------------------------------------------------------------------- #
 
@@ -146,7 +180,7 @@ def compute_pair_metrics(path_a: str | Path, path_b: str | Path) -> dict:
     out["pixel_max_abs"] = pc["max_abs_error"]
     out["pixel_exact"] = 1.0 if pc["exact_match"] else 0.0
     out["pixel_similarity"] = round(1.0 - pc["mean_abs_error"] / 255.0, 6)
-    for name, fn in (("ssim", ssim), ("lpips", lpips)):
+    for name, fn in (("ssim", ssim), ("lpips", lpips), ("dreamsim", dreamsim_distance)):
         try:
             out[name] = fn(path_a, path_b)
         except MetricUnavailableError:
